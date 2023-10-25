@@ -3,8 +3,9 @@ import com.rusherdevelopment.rusherhack.managers.ModuleManager;
 import com.rusherdevelopment.rusherhack.module.Module;
 import net.fabricmc.api.ClientModInitializer;
 import net.minecraft.client.MinecraftClient;
-
+import java.io.BufferedReader;
 import java.io.File;
+import java.io.FileReader;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -14,41 +15,31 @@ import java.util.TimerTask;
 
 public class YourPlugin implements ClientModInitializer {
     private static ArrayList<String> motdList = new ArrayList<>();
-    private static String motdFolder = "motd"; // MOTD dosyalarının bulunduğu klasörün adı
-    private static String selectedMOTDFile = "motd.txt"; // Başlangıçta kullanılacak MOTD dosyası
-    private static final long MOTD_CHANGE_INTERVAL = 600000; // Değişim aralığı (örneğin, 10 dakika)
-    private static int currentIndex = 0; // Başlangıçta gösterilecek karakter indeksi
-    private static String currentMOTD = ""; // Şu anki MOTD
+    private static String motdFolder = "motd"; // The folder where MOTD files are located
+    private static String selectedMOTDFile = "motd.txt"; // The MOTD file to start with
+    private static final long MOTD_CHANGE_INTERVAL = 300000; // The change interval (e.g., 5 minutes)
+    private static String currentMOTD = "";
+    private static int currentCharIndex = 0;
+    private static boolean reverseDirection = false;
+    private static Timer motdChangeTimer = new Timer();
 
     @Override
     public void onInitializeClient() {
         // Read MOTD entries from the selected file and populate the list
         loadMOTDFromFile(selectedMOTDFile);
 
-        // Schedule automatic MOTD updates at specified intervals
-        Timer timer = new Timer();
-        timer.scheduleAtFixedRate(new TimerTask() {
-            @Override
-            public void run() {
-                // Update the current MOTD character by character
-                if (currentIndex < currentMOTD.length()) {
-                    String currentCharacter = String.valueOf(currentMOTD.charAt(currentIndex));
-                    currentIndex++;
-                    DiscordRPC.start();
-                    DiscordRPC.update("Game Status", currentCharacter, "large-image-key");
-                } else {
-                    // If the entire MOTD has been displayed, reset the index
-                    currentIndex = 0;
-                }
-            }
-        }, 0, 500); // 0.5 saniye (500 milisaniye) aralıklarla karakteri güncelle
-
         // Set up Discord RPC with the first MOTD and queue information
         String queueInfo = ModuleManager.getModule("Queue").getArrayList().get(1).name; // Replace with the correct code to get queue info
         currentMOTD = motdList.get(0);
         DiscordRPC.start();
-        DiscordRPC.update("Game Status", String.valueOf(currentMOTD.charAt(0), "large-image-key");
-        DiscordRPC.updateDetails(queueInfo);
+
+        // Schedule automatic MOTD updates at specified intervals
+        motdChangeTimer.scheduleAtFixedRate(new TimerTask() {
+            @Override
+            public void run() {
+                changeMOTD();
+            }
+        }, MOTD_CHANGE_INTERVAL, MOTD_CHANGE_INTERVAL);
     }
 
     // Load MOTD entries from the specified file
@@ -68,5 +59,45 @@ public class YourPlugin implements ClientModInitializer {
         } catch (IOException e) {
             e.printStackTrace();
         }
+    }
+
+    // Change the MOTD and update Discord RPC
+    private void changeMOTD() {
+        int currentIndex = motdList.indexOf(currentMOTD);
+        if (currentIndex < motdList.size() - 1) {
+            currentIndex++;
+        } else {
+            currentIndex = 0;
+        }
+        currentMOTD = motdList.get(currentIndex);
+
+        String serverName = MinecraftClient.getInstance().getCurrentServerEntry().name; // Get the server name
+        String serverIP = MinecraftClient.getInstance().getCurrentServerEntry().address; // Get the server IP address
+        String motdStatus = "";
+
+        if (serverName != null && serverIP != null && serverName.equals("2b2t.org")) {
+            motdStatus = "Playing 2b2t.org";
+            String positionInQueue = getPositionInQueueMessage(); // Get the position in queue message
+            DiscordRPC.updateDetails(positionInQueue);
+            DiscordRPC.updateState(currentMOTD);
+        } else {
+            motdStatus = currentMOTD;
+            DiscordRPC.updateDetails("");
+            DiscordRPC.updateState("");
+        }
+
+        DiscordRPC.update("Game Status", motdStatus, "large-image-key");
+    }
+
+    // Get the position in queue message
+    private String getPositionInQueueMessage() {
+        int positionInQueue = getPositionInQueue(); // Replace with code to get the position in queue
+        return "Position in queue: " + positionInQueue;
+    }
+
+    // Replace with code to get the position in queue
+    private int getPositionInQueue() {
+        // Implement your logic to get the position in queue here
+        return 0;
     }
 }
